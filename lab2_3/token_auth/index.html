@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth0 Login/Sign Up</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        html {
+            height: 100%;
+        }
+
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            display: grid;
+            justify-items: center;
+            align-items: center;
+            background-color: #3a3a3a;
+        }
+
+        #main-holder {
+            width: 50%;
+            height: 70%;
+            display: grid;
+            justify-items: center;
+            align-items: center;
+            background-color: white;
+            border-radius: 7px;
+            box-shadow: 0px 0px 5px 2px black;
+            padding: 30px;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        form {
+            display: grid;
+            justify-items: center;
+            align-items: center;
+            width: 100%;
+        }
+
+        input.login-form-field {
+            border: none;
+            border-bottom: 1px solid #3a3a3a;
+            margin-bottom: 15px;
+            border-radius: 3px;
+            outline: none;
+            padding: 0px 0px 5px 5px;
+            width: 60%;
+        }
+
+        input.login-form-field::placeholder {
+            color: #3a3a3a;
+        }
+
+        input[type="submit"] {
+            width: 60%;
+            padding: 7px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            background-color: #3a3a3a;
+            cursor: pointer;
+            outline: none;
+            margin-top: 10px;
+        }
+
+        .msg {
+            width: 60%;
+            text-align: center;
+            margin: 0;
+            padding: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 5px;
+            opacity: 0;
+        }
+
+        #msg-login {
+            color: #8a0000;
+            border: 1px solid #8a0000;
+            background-color: #e58f8f;
+        }
+
+        #msg-signup {
+            color: green;
+            border: 1px solid green;
+            background-color: #b8e6b8;
+        }
+
+        #switch-btn {
+            background: none;
+            border: none;
+            color: #3a3a3a;
+            text-decoration: underline;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #logout {
+            cursor: pointer;
+            color: #3a3a3a;
+            font-weight: bold;
+            opacity: 0;
+            margin-top: 15px;
+        }
+
+        #welcome-msg {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<main id="main-holder">
+    <h1 id="form-header">Login</h1>
+
+    <form id="auth-form">
+        <input type="text" name="email" class="login-form-field" placeholder="Email">
+        <input type="password" name="password" class="login-form-field" placeholder="Password">
+        <input type="submit" value="Login" id="submit-btn">
+    </form>
+
+    <p id="msg-login" class="msg"></p>
+    <p id="msg-signup" class="msg"></p>
+
+    <button id="switch-btn">Switch to Sign Up</button>
+    <p id="logout">Logout</p>
+</main>
+
+<script>
+    const mainHolder = document.getElementById("main-holder");
+    const authForm = document.getElementById("auth-form");
+    const submitBtn = document.getElementById("submit-btn");
+    const msgLogin = document.getElementById("msg-login");
+    const msgSignup = document.getElementById("msg-signup");
+    const logoutLink = document.getElementById("logout");
+    const switchBtn = document.getElementById("switch-btn");
+    const formHeader = document.getElementById("form-header");
+
+    let isLogin = true;
+    let session = JSON.parse(sessionStorage.getItem("session") || "{}");
+
+    function showProfile(user) {
+        authForm.style.display = "none";
+        switchBtn.style.display = "none";
+        msgLogin.style.display = "none";
+        msgSignup.style.display = "none";
+
+        formHeader.textContent = "Welcome";
+
+        let welcome = document.getElementById("welcome-msg");
+        if (!welcome) {
+            welcome = document.createElement("p");
+            welcome.id = "welcome-msg";
+            mainHolder.insertBefore(welcome, logoutLink);
+        }
+        welcome.textContent = `Hello, ${user.nickname || user.name || user.email}`;
+        logoutLink.style.opacity = 1;
+    }
+
+    async function checkToken() {
+        if (!session.access_token) return;
+        try {
+            const response = await axios.get("/api/profile", {
+                headers: { Authorization: session.access_token }
+            });
+            showProfile(response.data.user);
+        } catch (err) {
+            console.error("Token check failed", err);
+            sessionStorage.removeItem("session");
+        }
+    }
+
+    checkToken();
+
+    authForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        msgLogin.style.opacity = 0;
+        msgSignup.style.opacity = 0;
+
+        const email = authForm.email.value;
+        const password = authForm.password.value;
+
+        if (isLogin) {
+            try {
+                const response = await axios.post("/api/login", { login: email, password });
+                session = response.data;
+                sessionStorage.setItem("session", JSON.stringify(session));
+                await checkToken();
+            } catch (err) {
+                const errorData = err.response?.data;
+
+                let errorText = "Login failed";
+
+                if (errorData?.message) {
+                    errorText = errorData.message;
+                } else if (errorData?.error) {
+                    errorText = errorData.error;
+                }
+
+                msgLogin.textContent = errorText;
+                msgLogin.style.opacity = 1;
+            }
+        } else {
+            try {
+                const response = await axios.post("/api/register", { email, password });
+                msgSignup.style.color = 'green';
+                msgSignup.textContent = `User created! Please login.`;
+                msgSignup.style.opacity = 1;
+                authForm.reset();
+
+                switchToLogin();
+            } catch (err) {
+                msgSignup.style.color = 'red';
+
+                const errorData = err.response?.data?.error;
+                let errorText = "Sign Up failed";
+
+                if (typeof errorData === 'object' && errorData !== null) {
+                    errorText = errorData.message || JSON.stringify(errorData);
+                } else if (typeof errorData === 'string') {
+                    errorText = errorData;
+                }
+
+                msgSignup.textContent = errorText;
+                msgSignup.style.opacity = 1;
+            }
+        }
+    });
+
+    function switchToLogin() {
+        isLogin = true;
+        submitBtn.value = "Login";
+        formHeader.textContent = "Login";
+        switchBtn.textContent = "Switch to Sign Up";
+    }
+
+    function switchToSignUp() {
+        isLogin = false;
+        submitBtn.value = "Sign Up";
+        formHeader.textContent = "Sign Up";
+        switchBtn.textContent = "Switch to Login";
+    }
+
+    switchBtn.addEventListener("click", () => {
+        msgLogin.style.opacity = 0;
+        msgSignup.style.opacity = 0;
+        isLogin ? switchToSignUp() : switchToLogin();
+    });
+
+    logoutLink.addEventListener("click", () => {
+        sessionStorage.removeItem("session");
+        location.reload();
+    });
+</script>
+</body>
+</html>
