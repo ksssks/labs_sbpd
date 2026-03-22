@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth0 SSO Application</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        html { height: 100%; }
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            display: grid;
+            justify-items: center;
+            align-items: center;
+            background-color: #3a3a3a;
+        }
+        #main-holder {
+            width: 400px;
+            display: grid;
+            justify-items: center;
+            align-items: center;
+            background-color: white;
+            border-radius: 7px;
+            box-shadow: 0px 0px 5px 2px black;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 { margin: 0 0 20px 0; }
+
+        .btn {
+            width: 80%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            outline: none;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        #login-btn { background-color: #eb5424; }
+        #login-btn:hover { background-color: #d1461c; }
+
+        #logout-btn { background-color: #3a3a3a; }
+        #logout-btn:hover { background-color: #222; }
+
+        #profile-section { display: none; width: 100%; }
+        #auth-section { width: 100%; }
+        #welcome-msg { margin-bottom: 20px; font-size: 18px; color: #333; }
+        #error-msg { color: red; font-size: 14px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<main id="main-holder">
+    <h1 id="form-header">SSO Login</h1>
+
+    <div id="auth-section">
+        <p>Please log in using your Auth0 account.</p>
+        <button id="login-btn" class="btn">Login with Auth0</button>
+        <p id="error-msg"></p>
+    </div>
+
+    <div id="profile-section">
+        <p id="welcome-msg"></p>
+        <button id="logout-btn" class="btn">Logout</button>
+    </div>
+</main>
+
+<script>
+    const authSection = document.getElementById("auth-section");
+    const profileSection = document.getElementById("profile-section");
+    const loginBtn = document.getElementById("login-btn");
+    const logoutBtn = document.getElementById("logout-btn");
+    const welcomeMsg = document.getElementById("welcome-msg");
+    const errorMsg = document.getElementById("error-msg");
+    const formHeader = document.getElementById("form-header");
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+
+    if (tokenFromUrl) {
+        sessionStorage.setItem("session", JSON.stringify({ access_token: `Bearer ${tokenFromUrl}` }));
+        window.history.replaceState({}, document.title, "/");
+    }
+
+    let session = JSON.parse(sessionStorage.getItem("session") || "{}");
+
+    async function checkToken() {
+        if (!session.access_token) return;
+
+        try {
+            const response = await axios.get("/api/profile", {
+                headers: { Authorization: session.access_token }
+            });
+
+            const user = response.data.user;
+            authSection.style.display = "none";
+            profileSection.style.display = "block";
+            formHeader.textContent = "Dashboard";
+
+            const userName = user.nickname || user.name || user.email || "User";
+            welcomeMsg.textContent = `Hello, ${userName}!`;
+
+        } catch (err) {
+            console.error("Token check failed", err);
+            sessionStorage.removeItem("session");
+            errorMsg.textContent = "Session expired or invalid. Please log in again.";
+        }
+    }
+
+    loginBtn.addEventListener("click", () => {
+        window.location.href = "/login";
+    });
+
+    logoutBtn.addEventListener("click", () => {
+        sessionStorage.removeItem("session");
+        window.location.href = "/logout";
+    });
+
+    checkToken();
+</script>
+</body>
+</html>
